@@ -3,9 +3,12 @@
 A web-based recreation of the puzzle game **Replicube**.
 This project aims to bring the experience of spatial reasoning and pattern matching to the browser using modern web technologies.
 
+👉 **Play the Live Demo:** [https://gabrieleiannace.github.io/Copycube/](https://gabrieleiannace.github.io/Copycube/)
+
 ## 🎮 Demo
 
-[Watch the Demo Video](demo.mp4)
+<video src="demo.mp4" controls="controls" style="max-width: 100%;">
+</video>
 
 > *Check out `demo.mp4` in the repository if the video doesn't play.*
 

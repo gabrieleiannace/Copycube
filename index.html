@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REPLICUBE</title>
+    <!-- Ace Editor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ext-language_tools.min.js"></script>
+    <!-- Pyodide -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+
+    <style>
+        :root {
+            --bg-gray: #1e1e1e;
+            /* Dark Industrial */
+            --border-dark: #000000;
+            --border-light: #444444;
+            --text-main: #e0e0e0;
+            --editor-bg: #111111;
+            --active-tab: #2d2d2d;
+            --accent-yellow: #a8a800;
+            /* Darker Gold for less retina burn */
+            --accent-red: #cc0000;
+            --panel-border: 2px solid #000;
+            --viz-bg-target: #111111;
+            /* Dark background for target */
+            --viz-bg-player: #1a202c;
+            /* Slightly blue-ish dark */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            color: var(--text-main);
+            font-family: 'Courier New', Courier, monospace;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-sizing: border-box;
+            border: 4px solid #444;
+            /* Outer casing */
+        }
+
+        /* --- Header --- */
+        header {
+            background: var(--bg-gray);
+            border-bottom: var(--panel-border);
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        header h1 {
+            font-size: 18px;
+            letter-spacing: 2px;
+            margin: 0;
+            padding: 0;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .files-icon {
+            position: absolute;
+            left: 5px;
+            font-size: 24px;
+            cursor: pointer;
+            line-height: 20px;
+        }
+
+        /* --- Main Layout --- */
+        #main-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 34px);
+            /* Header - borders */
+        }
+
+        /* Left Panel: Editor */
+        #editor-panel {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            border-right: var(--panel-border);
+            background: var(--bg-gray);
+        }
+
+        .tab-bar {
+            height: 25px;
+            background: #333;
+            display: flex;
+            align-items: flex-end;
+            padding-left: 2px;
+            border-bottom: var(--panel-border);
+        }
+
+        .tab {
+            background: var(--bg-gray);
+            padding: 2px 10px;
+            border: 2px solid #000;
+            border-bottom: none;
+            margin-right: -2px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            position: relative;
+            top: 2px;
+            /* Connect to panel below */
+            z-index: 1;
+        }
+
+        .tab-actions {
+            margin-left: auto;
+            margin-right: 5px;
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn-small {
+            background: #444;
+            color: #eee;
+            border: 1px solid #000;
+            font-size: 10px;
+            padding: 2px 4px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        #code-editor-container {
+            flex: 1;
+            position: relative;
+            border-bottom: var(--panel-border);
+            background: var(--editor-bg);
+            /* Editor bg */
+        }
+
+        #code-editor {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            font-size: 16px;
+        }
+
+        /* Editor Overlay Text (line numbers etc) is handled by Ace, 
+           but we might want to inject the "returning 0..." comments if they are static tutorial text.
+           For now we assume they are part of the code. */
+
+        .status-bar {
+            height: 20px;
+            background: var(--bg-gray);
+            border-bottom: 1px solid #000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 5px;
+            font-size: 12px;
+        }
+
+        .action-bar {
+            height: 35px;
+            display: flex;
+            background: var(--bg-gray);
+            border-bottom: var(--panel-border);
+        }
+
+        .btn-run {
+            flex: 2;
+            background: var(--accent-yellow);
+            border: none;
+            border-right: 2px solid #000;
+            font-weight: bold;
+            font-family: inherit;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-run:hover {
+            background: #e6db00;
+        }
+
+        .btn-run:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+
+        .toggle-auto {
+            flex: 1;
+            background: #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        .palette-bar {
+            height: 40px;
+            background: #333;
+            display: flex;
+            padding: 2px;
+        }
+
+        .color-swatch {
+            flex: 1;
+            margin: 0 1px;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .color-swatch:hover {
+            opacity: 0.9;
+            transform: scale(1.1);
+            z-index: 10;
+            border: 1px solid white;
+        }
+
+        /* Right Panel: Visualization */
+        #viz-panel {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-gray);
+        }
+
+        /* Top Right: Reference */
+        .viz-top-container {
+            flex: 1;
+            border-bottom: 4px solid #000;
+            /* Separator */
+            position: relative;
+            background: var(--viz-bg-target);
+            /* Beige background from screenshot */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .viz-header {
+            height: 25px;
+            background: var(--bg-gray);
+            border-bottom: 2px solid #000;
+            display: flex;
+        }
+
+        .viz-tab {
+            padding: 4px 8px;
+            border-right: 1px solid #000;
+            font-size: 12px;
+            background: var(--bg-gray);
+            cursor: pointer;
+        }
+
+        .viz-tab.active {
+            background: var(--active-tab);
+            border-bottom: none;
+        }
+
+        #viewport-target {
+            flex: 1;
+            position: relative;
+        }
+
+        /* Bottom Right: Player Result */
+        .viz-bottom-container {
+            flex: 1;
+            position: relative;
+            background: var(--viz-bg-player);
+            /* Blue/Grey from screenshot bottom? Or just black. Screenshot bottom looks like Blue background with white grid */
+            background: var(--viz-bg-player);
+        }
+
+        #viewport-player {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Comparison Overlay */
+        .comparison-box {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: #5dade2;
+            /* Light Blue */
+            border: 2px solid #000;
+            padding: 0;
+            width: 200px;
+            font-size: 12px;
+            font-family: inherit;
+            box-shadow: 4px 4px 0px #000;
+        }
+
+        .comp-header {
+            background: #2874a6;
+            color: white;
+            padding: 4px;
+            font-weight: bold;
+            border-bottom: 1px solid #000;
+        }
+
+        .comp-row {
+            display: flex;
+            justify-content: space-between;
+            justify-content: space-between;
+            padding: 2px 5px;
+            background: #333;
+        }
+
+        .comp-btn {
+            width: 100%;
+            border: none;
+            border-top: 1px solid #000;
+            background: #444;
+            color: #ccc;
+            padding: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+        }
+
+        .comp-btn:hover {
+            background: #ddd;
+        }
+
+
+        /* Misc */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 9999;
+        }
+
+        /* UI Overrides for Ace */
+        .ace_gutter {
+            background: #222 !important;
+            color: #888 !important;
+        }
+
+        .ace_print-margin {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="files-icon">✖</div>
+        <h1>COPYCUBE</h1>
+    </header>
+
+    <!-- Main Container -->
+    <div id="main-container">
+
+        <!-- LEFT: Editor -->
+        <div id="editor-panel">
+            <div class="tab-bar">
+                <div class="tab">code</div>
+                <div class="tab-actions">
+                    <button class="btn-small">ADD CODE TAB</button>
+                </div>
+            </div>
+
+            <div id="code-editor-container">
+                <div id="code-editor"></div>
+            </div>
+
+            <div class="status-bar">
+                <span>Code size: <span id="code-size">0</span></span>
+                <span id="run-status" style="color:var(--accent-yellow)">READY</span>
+            </div>
+
+            <div class="action-bar">
+                <button id="btn-run" class="btn-run" disabled>RUN CODE (CTRL+R)</button>
+                <div class="toggle-auto">
+                    Auto run code as I type
+                    <input type="checkbox" checked>
+                </div>
+            </div>
+
+            <div class="palette-bar" id="palette-bar">
+                <!-- Generated by JS -->
+            </div>
+        </div>
+
+        <!-- RIGHT: Visuals -->
+        <div id="viz-panel">
+            <!-- Target View -->
+            <div class="viz-top-container">
+                <div class="viz-header">
+                    <div class="viz-tab active">Reference Object</div>
+                    <div class="viz-tab">Documentation</div>
+                    <div class="viz-tab">Debug Output</div>
+                </div>
+                <div id="viewport-target"></div>
+            </div>
+
+            <!-- Player View -->
+            <div class="viz-bottom-container">
+                <div id="viewport-player"></div>
+
+                <div class="comparison-box">
+                    <div class="comp-header">COMPARISON RESULTS</div>
+                    <div class="comp-row">
+                        <span>Shape Match</span>
+                        <span id="score-shape">0%</span>
+                    </div>
+                    <div class="comp-row">
+                        <span>Overall Match</span>
+                        <span id="score-overall">0%</span>
+                    </div>
+                    <button class="comp-btn" id="btn-show-comp">SHOW COMPARISON</button>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-overlay" class="loading-overlay">
+        <h2>LOADING PYTHON ENGINE...</h2>
+    </div>
+
+    <!-- Tooltip (Replicube Style) -->
+    <div id="voxel-tooltip"
+        style="position: absolute; display: none; pointer-events: none; font-family: 'Courier New', monospace; font-weight: bold; font-size: 14px; background: rgba(0,0,0,0.85); border: 2px solid white; padding: 2px; z-index: 1000; box-shadow: 4px 4px 0px rgba(0,0,0,0.5);">
+        <div style="display: flex; gap: 4px;">
+            <span id="tt-x"
+                style="background:#ff5555; padding: 2px 6px; color:white; min-width: 20px; text-align: center;">-</span>
+            <span id="tt-y"
+                style="background:#55ff55; padding: 2px 6px; color:black; min-width: 20px; text-align: center;">-</span>
+            <span id="tt-z"
+                style="background:#5555ff; padding: 2px 6px; color:white; min-width: 20px; text-align: center;">-</span>
+            <span id="tt-val"
+                style="background:#222; padding: 2px 6px; color:white; padding-right:8px; border-left: 1px solid #555;">=
+                ?</span>
+        </div>
+    </div>
+
+    <!-- Logic -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+        // --- Configuration ---
+        const GRID_SIZE = 4;
+        const VOXEL_SIZE = 0.9;
+        const apiKey = "";
+
+        // --- Colors ---
+        const PALETTE = [
+            '#000000', '#1D2B53', '#7E2553', '#008751',
+            '#AB5236', '#5F574F', '#C2C3C7', '#FFF1E8',
+            '#FF004D', '#FFA300', '#FFEC27', '#00E436',
+            '#29ADFF', '#83769C', '#FF77A8', '#FFCCAA'
+        ];
+
+        // --- State ---
+        let sceneTarget, scenePlayer;
+        let cameraTarget, cameraPlayer;
+        let rendererTarget, rendererPlayer;
+        let controlsTarget, controlsPlayer;
+        let targetVoxels = {};
+        let playerVoxels = {};
+        let animatingVoxels = []; // List of objects to animate { mesh, start, duration }
+        let editor;
+        let pyodide = null;
+
+        // Interaction
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        let selectionBox;
+        let hoveredVoxel = null;
+        let viewportRectVal = null; // Cache rect
+
+        const defaultCode = `# Create your own shape!
+# Returning 0, None, or 'EMPTY' makes the voxel empty
+
+def main(x, y, z):
+    # Limit the shape size to 3x3x3 centered
+    if abs(x) > 1 or abs(y) > 1 or abs(z) > 1:
+        return None
+
+    # Try changing 'RED' to other colors like 'BLUE', 'GREEN', 'ORANGE'
+    return 'RED'
+`;
+
+        function logLoad(msg) {
+            console.log("[LOADER]", msg);
+            // ... truncated for brevity, existing log logic is fine ...
+            const ov = document.getElementById('loading-overlay');
+            if (ov && !ov.innerHTML.includes('ul')) {
+                ov.innerHTML = `<h2>LOADING PYTHON ENGINE...</h2><ul id="load-logs" style="text-align:left;font-family:monospace;font-size:12px;background:#000;padding:10px;list-style:none;max-height:200px;overflow:auto;width:80%;margin:0 auto;"></ul>`;
+            }
+            const ul = document.getElementById('load-logs');
+            if (ul) {
+                const li = document.createElement('li');
+                li.innerText = "> " + msg;
+            }
+        }
+
+        async function init() {
+            try {
+                logLoad("Starting initialization...");
+                setupPalette();
+                logLoad("Palette setup done.");
+                setupAce();
+                logLoad("Ace Editor setup done.");
+                init3D();
+                logLoad("3D Scene setup done.");
+
+                if (typeof loadPyodide === 'undefined') {
+                    throw new Error("Global 'loadPyodide' is undefined.");
+                }
+                logLoad("loadPyodide function found. Calling it...");
+
+                pyodide = await loadPyodide({
+                    indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/",
+                    stdout: (text) => console.log("Python Output:", text),
+                    stderr: (text) => console.error("Python Error:", text)
+                });
+
+                logLoad("Pyodide initialized!");
+                document.getElementById('loading-overlay').style.display = 'none';
+                document.getElementById('btn-run').disabled = false;
+
+                generateTargetLevel();
+                logLoad("Target level generated.");
+
+                await runCode();
+                logLoad("Initial code run complete.");
+
+            } catch (e) {
+                console.error(e);
+                const overlay = document.getElementById('loading-overlay');
+                overlay.style.backgroundColor = 'rgba(100, 0, 0, 0.95)';
+                overlay.innerHTML = `<h2 style="color:#ff5555">CRITICAL ERROR</h2><p>${e.message}</p><button onclick="location.reload()">RETRY</button>`;
+            }
+
+            window.addEventListener('resize', onResize);
+            document.getElementById('btn-run').addEventListener('click', runCode);
+
+
+            if (editor) {
+                // Debounce Auto-Run
+                let timeout = null;
+                editor.session.on('change', () => {
+                    const el = document.getElementById('code-size');
+                    if (el) el.innerText = editor.getValue().length;
+
+                    // Auto Run if enabled (always enabled per user request logic, or check toggle)
+                    // The toggle exists in HTML, let's respect it but default to true.
+                    // Actually user said "voglio veramente che ad ogni lettera che scrivo runna in automatico"
+                    // checking the checkbox is safer.
+                    const autoCheck = document.querySelector('.toggle-auto input');
+                    if (autoCheck && autoCheck.checked) {
+                        if (timeout) clearTimeout(timeout);
+                        timeout = setTimeout(() => {
+                            runCode();
+                        }, 500); // 500ms debounce to prevent freezing
+                    }
+                });
+            }
+            animate();
+        }
+
+        function setupPalette() {
+            const bar = document.getElementById('palette-bar');
+            bar.innerHTML = '';
+            PALETTE.forEach((color, idx) => {
+                const div = document.createElement('div');
+                div.className = 'color-swatch';
+                div.style.backgroundColor = color;
+                div.innerText = idx + 1;
+                div.onclick = () => { editor.insert(`'${color}'`); editor.focus(); };
+                bar.appendChild(div);
+            });
+        }
+
+        function setupAce() {
+            editor = ace.edit("code-editor");
+            editor.setTheme("ace/theme/tomorrow_night");
+            editor.session.setMode("ace/mode/python");
+            editor.setOptions({
+                fontSize: "14px",
+                fontFamily: "'Courier New', monospace",
+                showPrintMargin: false,
+                highlightActiveLine: true,
+                showGutter: true,
+                enableBasicAutocompletion: true,
+                enableLiveAutocompletion: true,
+            });
+            editor.setValue(defaultCode, -1);
+        }
+
+        function init3D() {
+            const containerT = document.getElementById('viewport-target');
+            sceneTarget = new THREE.Scene();
+            sceneTarget.background = new THREE.Color('#111111');
+            cameraTarget = new THREE.PerspectiveCamera(45, containerT.clientWidth / containerT.clientHeight, 0.1, 100);
+            cameraTarget.position.set(8, 8, 8);
+            rendererTarget = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // Enable alpha just in case
+            rendererTarget.setSize(containerT.clientWidth, containerT.clientHeight);
+            containerT.innerHTML = '';
+            containerT.appendChild(rendererTarget.domElement);
+            controlsTarget = new OrbitControls(cameraTarget, rendererTarget.domElement);
+            addEnvironment(sceneTarget, true);
+
+            const containerP = document.getElementById('viewport-player');
+            scenePlayer = new THREE.Scene();
+            scenePlayer.background = new THREE.Color('#1a202c');
+            cameraPlayer = new THREE.PerspectiveCamera(45, containerP.clientWidth / containerP.clientHeight, 0.1, 100);
+            cameraPlayer.position.set(8, 8, 8);
+            rendererPlayer = new THREE.WebGLRenderer({ antialias: true });
+            rendererPlayer.setSize(containerP.clientWidth, containerP.clientHeight);
+            containerP.innerHTML = '';
+            containerP.appendChild(rendererPlayer.domElement);
+            controlsPlayer = new OrbitControls(cameraPlayer, rendererPlayer.domElement);
+            addEnvironment(scenePlayer, false);
+
+            // Selection Box (Wireframe)
+            const selGeo = new THREE.BoxGeometry(VOXEL_SIZE + 0.05, VOXEL_SIZE + 0.05, VOXEL_SIZE + 0.05);
+            const selEdges = new THREE.EdgesGeometry(selGeo);
+            selectionBox = new THREE.LineSegments(selEdges, new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 }));
+            selectionBox.visible = false;
+            scenePlayer.add(selectionBox);
+
+            // Mouse Events for Player Viewport (Tooltip + Drag)
+            rendererPlayer.domElement.addEventListener('pointermove', onPointerMove);
+            rendererPlayer.domElement.addEventListener('pointerdown', (e) => onPointerDown(e, cameraPlayer, rendererPlayer.domElement)); // Handle Drag Start
+
+            // Mouse Events for Target Viewport (Just Drag)
+            rendererTarget.domElement.addEventListener('pointerdown', (e) => onPointerDown(e, cameraTarget, rendererTarget.domElement));
+            rendererTarget.domElement.addEventListener('pointermove', (e) => {
+                if (dragState.active) handleDrag(e);
+            });
+
+            // Sync Cameras
+            let isSyncing = false;
+
+            controlsTarget.addEventListener('change', () => {
+                if (isSyncing) return;
+                isSyncing = true;
+
+                cameraPlayer.position.copy(cameraTarget.position);
+                cameraPlayer.rotation.copy(cameraTarget.rotation);
+                cameraPlayer.zoom = cameraTarget.zoom;
+                cameraPlayer.updateProjectionMatrix();
+
+                controlsPlayer.target.copy(controlsTarget.target);
+                controlsPlayer.update();
+
+                isSyncing = false;
+            });
+
+            controlsPlayer.addEventListener('change', () => {
+                if (isSyncing) return;
+                isSyncing = true;
+
+                cameraTarget.position.copy(cameraPlayer.position);
+                cameraTarget.rotation.copy(cameraPlayer.rotation);
+                cameraTarget.zoom = cameraPlayer.zoom;
+                cameraTarget.updateProjectionMatrix();
+
+                controlsTarget.target.copy(controlsPlayer.target);
+                controlsTarget.update();
+
+                isSyncing = false;
+            });
+        }
+
+        function onPointerMove(event) {
+            // Drag Handling
+            if (dragState.active) {
+                handleDrag(event);
+                return; // Skip tooltip if dragging
+            }
+
+            // Calculate pointer position in normalized device coordinates (-1 to +1) for those of the components.
+            const rect = rendererPlayer.domElement.getBoundingClientRect();
+            pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            // Update Tooltip Position (Follow mouse with offset)
+            const tt = document.getElementById('voxel-tooltip');
+            tt.style.left = (event.clientX + 15) + 'px';
+            tt.style.top = (event.clientY - 40) + 'px'; // Move up slightly
+
+            checkIntersection();
+        }
+
+        function checkIntersection() {
+            raycaster.setFromCamera(pointer, cameraPlayer);
+
+            // Intersect objects in player scene
+            // We only want to intersect meshes that are voxels.
+            // Voxels have names like "x,y,z".
+            const intersects = raycaster.intersectObjects(scenePlayer.children);
+
+            let found = null;
+            for (let i = 0; i < intersects.length; i++) {
+                const obj = intersects[i].object;
+                if (obj.isMesh && obj !== selectionBox && obj.name.includes(',')) {
+                    found = obj;
+                    break;
+                }
+            }
+
+            const tt = document.getElementById('voxel-tooltip');
+
+            if (found) {
+                if (hoveredVoxel !== found) {
+                    hoveredVoxel = found;
+                    selectionBox.visible = true;
+                    selectionBox.position.copy(found.position);
+
+                    // Update Tooltip Data
+                    const [x, y, z] = found.name.split(',');
+                    document.getElementById('tt-x').innerText = x;
+                    document.getElementById('tt-y').innerText = y;
+                    document.getElementById('tt-z').innerText = z;
+
+                    // Find Color Index
+                    // found.material.color is a THREE.Color.
+                    // hex string in store is user provided hex.
+                    const hexVal = '#' + found.material.color.getHexString().toUpperCase();
+                    // Need to match roughly if slight floating point diffs?
+                    // But our palette is fixed strings.
+                    // Let's iterate palette.
+                    let idx = -1;
+                    const c = found.material.color;
+
+                    PALETTE.forEach((pHex, i) => {
+                        const pc = new THREE.Color(pHex);
+                        // Simple euclidean dist in RGB
+                        const d = Math.sqrt(
+                            Math.pow(c.r - pc.r, 2) +
+                            Math.pow(c.g - pc.g, 2) +
+                            Math.pow(c.b - pc.b, 2)
+                        );
+                        if (d < 0.05) { // Threshold
+                            idx = i + 1; // 1-based index
+                        }
+                    });
+
+                    document.getElementById('tt-val').innerText = idx !== -1 ? `= ${idx}` : '= ?';
+                    tt.style.display = 'block';
+                }
+            } else {
+                hoveredVoxel = null;
+                selectionBox.visible = false;
+                tt.style.display = 'none';
+            }
+        }
+
+        // Sync Cameras
+
+
+        function addEnvironment(scene, isTarget) {
+            const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambient);
+            const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+            sun.position.set(5, 10, 7);
+            scene.add(sun);
+            scene.add(sun);
+            const gridColor = isTarget ? 0x444444 : 0x555555;
+            scene.add(new THREE.GridHelper(10, 10, gridColor, gridColor));
+
+            // Custom Thick Axes (Replicube Style)
+            // Axes centered at the absolute origin (0,0,0) and pointing outwards
+
+
+
+            // Helper for axis segment (start -> end) with optional arrow
+            // Helper for axis marker (small spheres at integers)
+            const createMarker = (pos, color) => {
+                const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshLambertMaterial({ color: color }));
+                mesh.position.copy(pos);
+                return mesh;
+            };
+
+            // Helper for axis segment (start -> end) with optional arrow
+            const createAxisLine = (axisName, start, end, color, hasArrow) => {
+                const vec = new THREE.Vector3().subVectors(end, start);
+                const len = vec.length();
+                const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+
+                const cyl = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.06, 0.06, len, 8),
+                    new THREE.MeshLambertMaterial({ color: color })
+                );
+                cyl.position.copy(mid);
+                cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vec.normalize());
+                cyl.userData = { isAxis: true, axis: axisName };
+
+                const g = new THREE.Group();
+                g.add(cyl);
+
+                const dist = start.distanceTo(end);
+                // Assume start is 0,0,0
+                for (let i = 1; i < dist; i++) {
+                    const t = i / dist;
+                    const p = new THREE.Vector3().lerpVectors(start, end, t);
+                    g.add(createMarker(p, color));
+                }
+
+                if (hasArrow) {
+                    const head = new THREE.Mesh(
+                        new THREE.ConeGeometry(0.3, 0.6, 12),
+                        new THREE.MeshLambertMaterial({ color: color })
+                    );
+                    head.position.copy(end);
+                    head.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vec.normalize());
+                    head.userData = { isHandle: true, axis: axisName }; // Interactive
+                    head.name = `HANDLE_${axisName}`;
+                    g.add(head);
+                }
+
+                return g;
+            };
+
+            // Axes Centered at Origin (0,0,0)
+            const extent = 4.5;
+            scene.add(createAxisLine('x', new THREE.Vector3(0, 0, 0), new THREE.Vector3(extent, 0, 0), 0xff0000, true));
+            scene.add(createAxisLine('x', new THREE.Vector3(0, 0, 0), new THREE.Vector3(-extent, 0, 0), 0xff0000, false));
+
+            scene.add(createAxisLine('y', new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, extent, 0), 0x00ff00, true));
+            scene.add(createAxisLine('y', new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -extent, 0), 0x00ff00, false));
+
+            scene.add(createAxisLine('z', new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, extent), 0x0066ff, true));
+            scene.add(createAxisLine('z', new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -extent), 0x0066ff, false));
+
+            // Wireframe Cage
+            const cageGeo = new THREE.BoxGeometry(5, 5, 5);
+            const cageEdges = new THREE.EdgesGeometry(cageGeo);
+            const cage = new THREE.LineSegments(cageEdges, new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.3, transparent: true }));
+            scene.add(cage);
+
+            // Labels - High Resolution
+            const createLabel = (text, pos, color) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                ctx.font = 'Bold 140px "Courier New", monospace';
+                ctx.fillStyle = color;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.shadowColor = "rgba(0,0,0,0.8)";
+                ctx.shadowBlur = 6;
+                ctx.fillText(text, 128, 128);
+                const tex = new THREE.CanvasTexture(canvas);
+                tex.minFilter = THREE.LinearFilter;
+                const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false }); // Always see labels through cubes
+                const sprite = new THREE.Sprite(mat);
+                sprite.position.copy(pos);
+                sprite.scale.set(0.6, 0.6, 0.6);
+                sprite.renderOrder = 999;
+                return sprite;
+            };
+
+            const range = 3;
+            for (let i = -range; i <= range; i++) {
+                if (i === 0) {
+                    scene.add(createLabel("0", new THREE.Vector3(0.4, 0.4, 0), '#ffffff'));
+                    continue;
+                }
+                const txt = (i > 0 ? "+" : "") + i;
+
+                // Labels positioned along the axes lines
+
+                // X Labels (along X axis at Y=0.3, Z=0)
+                scene.add(createLabel(txt, new THREE.Vector3(i, 0.3, 0), '#ff5555'));
+
+                // Y Labels (along Y axis at X=0.3, Z=0)
+                scene.add(createLabel(txt, new THREE.Vector3(0.3, i, 0), '#55ff55'));
+
+                // Z Labels (along Z axis at X=0, Y=0.3)
+                scene.add(createLabel(txt, new THREE.Vector3(0, 0.3, i), '#5555ff'));
+            }
+        }
+
+        // --- Interaction Logic for Slicing ---
+        const CLIP_VALS = { x: 5, y: 5, z: 5 }; // Max extent
+        let dragState = { active: false, axis: null, camera: null, domElement: null };
+        const dragPlane = new THREE.Plane();
+
+        function onPointerDown(event, camera, domElement) {
+            const rect = domElement.getBoundingClientRect();
+            const p = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+
+            raycaster.setFromCamera(p, camera);
+
+            let sceneToCheck = (camera === cameraTarget) ? sceneTarget : scenePlayer;
+            const intersects = raycaster.intersectObjects(sceneToCheck.children, true);
+
+            for (let hit of intersects) {
+                if (hit.object.userData.isHandle) {
+                    dragState.active = true;
+                    dragState.axis = hit.object.userData.axis;
+                    dragState.camera = camera;
+                    dragState.domElement = domElement;
+
+                    controlsTarget.enabled = false;
+                    controlsPlayer.enabled = false;
+
+                    const viewDir = new THREE.Vector3();
+                    camera.getWorldDirection(viewDir);
+                    dragPlane.setFromNormalAndCoplanarPoint(viewDir, hit.point);
+
+                    event.stopPropagation();
+                    return;
+                }
+            }
+        }
+
+        function onPointerUp() {
+            if (dragState.active) {
+                dragState.active = false;
+                controlsTarget.enabled = true;
+                controlsPlayer.enabled = true;
+            }
+        }
+
+        function handleDrag(event) {
+            if (!dragState.active) return;
+
+            const rect = dragState.domElement.getBoundingClientRect();
+            const p = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+
+            raycaster.setFromCamera(p, dragState.camera);
+            const target = new THREE.Vector3();
+            if (raycaster.ray.intersectPlane(dragPlane, target)) {
+                let val = 0;
+                if (dragState.axis === 'x') val = target.x;
+                if (dragState.axis === 'y') val = target.y;
+                if (dragState.axis === 'z') val = target.z;
+
+                // Full Range Clamping (-4.5 to 4.5) to allow slicing everything
+                CLIP_VALS[dragState.axis] = Math.max(-4.5, Math.min(val, 4.5));
+            }
+        }
+
+        // Global Event for Drag End
+        window.addEventListener('pointerup', onPointerUp);
+
+        function onResize() {
+            const cT = document.getElementById('viewport-target');
+            cameraTarget.aspect = cT.clientWidth / cT.clientHeight;
+            cameraTarget.updateProjectionMatrix();
+            rendererTarget.setSize(cT.clientWidth, cT.clientHeight);
+            const cP = document.getElementById('viewport-player');
+            cameraPlayer.aspect = cP.clientWidth / cP.clientHeight;
+            cameraPlayer.updateProjectionMatrix();
+            rendererPlayer.setSize(cP.clientWidth, cP.clientHeight);
+            if (editor) editor.resize();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Slicing Animation Logic
+            // Apply scale to voxels based on CLIP_VALS
+            updateVoxelSlicing(sceneTarget);
+            updateVoxelSlicing(scenePlayer);
+
+            // Render
+            rendererTarget.render(sceneTarget, cameraTarget);
+            rendererPlayer.render(scenePlayer, cameraPlayer);
+            controlsTarget.update();
+            controlsPlayer.update();
+
+            // Animate Bubbles
+            const now = performance.now();
+            // Helper to process bubbles
+            animatingVoxels = animatingVoxels.filter(item => {
+                const elapsed = now - item.start; // start is start time
+                if (elapsed < 0) return true; // Waiting for delay
+
+                let progress = elapsed / item.duration;
+                if (progress > 1) {
+                    item.mesh.userData.animScale = 1; // Finished
+                    return false;
+                }
+
+                // Elastic Out Ease
+                // p => Math.pow(2, -10 * p) * Math.sin((p * 10 - 0.75) * (2 * Math.PI) / 3) + 1;
+                const p = progress;
+                const val = (p === 0) ? 0 : (p === 1) ? 1 : Math.pow(2, -10 * p) * Math.sin((p * 10 - 0.75) * (2 * Math.PI) / 3) + 1;
+
+                item.mesh.userData.animScale = val; // Store in userdata
+                return true;
+            });
+        }
+
+        function updateVoxelSlicing(scene) {
+            scene.children.forEach(obj => {
+                if (obj.name.includes(',')) {
+                    // It is a voxel
+                    const pos = obj.position;
+
+                    // Smooth Slicing
+                    // Value range: (-0.5 to +1.5) relative to clip for transition?
+                    // Let's us SMOOTHSTEP.
+                    const range = 1.0; // Transition distance
+
+                    const dx = THREE.MathUtils.smoothstep((CLIP_VALS.x + 0.5) - pos.x, 0, range);
+                    const dy = THREE.MathUtils.smoothstep((CLIP_VALS.y + 0.5) - pos.y, 0, range);
+                    const dz = THREE.MathUtils.smoothstep((CLIP_VALS.z + 0.5) - pos.z, 0, range);
+
+                    let scale = Math.min(dx, dy, dz);
+
+                    // Combine with Bubble Animation
+                    if (obj.userData.animScale !== undefined) {
+                        scale *= obj.userData.animScale;
+                    }
+
+                    if (obj.userData.animScale === undefined) obj.userData.animScale = 1;
+
+                    // Ghost Voxel: Min Scale 0.1
+                    const minScale = 0.15; // "Cubettino piccolo piccolo"
+                    const finalScale = scale * (1 - minScale) + minScale;
+
+                    obj.scale.setScalar(finalScale);
+                    obj.visible = true; // Always visible as ghost
+                }
+            });
+        }
+
+        function clearVoxels(scene, store) {
+            for (const key in store) {
+                const mesh = scene.getObjectByName(key);
+                if (mesh) scene.remove(mesh);
+            }
+            for (const key in store) delete store[key];
+        }
+
+        function addVoxel(x, y, z, color, scene, store) {
+            // RoundedBox for softer look
+            const geo = new RoundedBoxGeometry(VOXEL_SIZE, VOXEL_SIZE, VOXEL_SIZE, 4, 0.1);
+            let c = color;
+            if (typeof c === 'string') {
+                c = c.toLowerCase();
+                if (c === 'red') c = '#ff0000';
+                if (c === 'blue') c = '#0000ff';
+                if (c === 'green') c = '#00ff00';
+                if (c === 'white') c = '#ffffff';
+                if (c === 'orange') c = '#ffa500';
+                if (c === 'yellow') c = '#ffff00';
+                if (c === 'black') c = '#111111'; // Not pure black for visibility
+            }
+            const mat = new THREE.MeshLambertMaterial({ color: c });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, y, z);
+            mesh.name = `${x},${y},${z}`;
+            scene.add(mesh);
+            store[mesh.name] = new THREE.Color(c).getHexString();
+
+            // Setup Animation
+            mesh.scale.set(0, 0, 0);
+            animatingVoxels.push({
+                mesh: mesh,
+                start: performance.now() + Math.random() * 150, // Reduced delay for tighter effect
+                duration: 800 + Math.random() * 400 // Balanced duration (800-1200ms)
+            });
+        }
+
+        function generateTargetLevel() {
+            clearVoxels(sceneTarget, targetVoxels);
+            // Rainbow Layers Target
+            const layers = {
+                2: 'white',
+                1: 'orange',
+                0: 'yellow',
+                '-1': 'green',
+                '-2': 'blue'
+            };
+
+            for (let x = -2; x <= 2; x++) {
+                for (let z = -2; z <= 2; z++) {
+                    for (let y = -2; y <= 2; y++) {
+                        // Create a hollow cube or filled? Let's do filled layers
+                        if (layers[y]) {
+                            addVoxel(x, y, z, layers[y], sceneTarget, targetVoxels);
+                        }
+                    }
+                }
+            }
+        }
+
+        async function runCode() {
+            if (!pyodide) return;
+            const code = editor.getValue();
+            const pyCode = `
+${code}
+def _scan():
+    out = []
+    if 'main' not in globals(): return "NO_MAIN"
+    for x in range(-${GRID_SIZE}, ${GRID_SIZE}+1):
+        for y in range(-${GRID_SIZE}, ${GRID_SIZE}+1):
+            for z in range(-${GRID_SIZE}, ${GRID_SIZE}+1):
+                try:
+                    res = main(x,y,z)
+                    if res and res != 'EMPTY':
+                        out.append([x,y,z, res])
+                except:
+                    pass
+    return out
+_scan()
+`;
+            try {
+                const proxy = await pyodide.runPythonAsync(pyCode);
+                if (typeof proxy === 'string' && proxy === "NO_MAIN") {
+                    alert("Definisci una funzione 'def main(x,y,z):'");
+                    return;
+                }
+                const results = proxy.toJs();
+                proxy.destroy();
+                clearVoxels(scenePlayer, playerVoxels);
+                results.forEach(r => addVoxel(r[0], r[1], r[2], r[3], scenePlayer, playerVoxels));
+                checkScore();
+                const statusEl = document.getElementById('run-status');
+                if (statusEl) {
+                    statusEl.innerText = "OK";
+                    statusEl.style.color = "#00ff00";
+                }
+            } catch (e) {
+                console.error(e);
+                // Non-intrusive error reporting
+                const statusEl = document.getElementById('run-status');
+                if (statusEl) {
+                    let msg = e.message;
+                    if (msg.includes('PythonError')) msg = "Syntax/Runtime Error";
+                    // Grab last line of error for brevity
+                    const lines = msg.split('\n');
+                    statusEl.innerText = "ERR: " + (lines.length > 0 ? lines[lines.length - 1] : "Unknown");
+                    statusEl.style.color = "var(--accent-red)";
+                }
+            }
+        }
+
+        function checkScore() {
+            const tKeys = Object.keys(targetVoxels);
+            const pKeys = Object.keys(playerVoxels);
+
+            // Intersection (Matched blocks)
+            let intersection = 0;
+            pKeys.forEach(k => {
+                if (targetVoxels[k] && playerVoxels[k] === targetVoxels[k]) {
+                    intersection++;
+                }
+            });
+
+            // Union (Total unique blocks involved)
+            // Union size = Target Size + (Player Size - Intersection)
+            // Wait, standard Jaccard Index is Intersection / Union.
+            const union = new Set([...tKeys, ...pKeys]).size;
+
+            // Avoid division by zero
+            const dimScore = (union === 0) ? 0 : Math.floor((intersection / union) * 100);
+
+            // Shape Match: How much of the target is covered? (Recall/Sensitivity)
+            // const recall = Math.floor((intersection / tKeys.length) * 100) || 0;
+
+            document.getElementById('score-shape').innerText = dimScore + "%";
+            document.getElementById('score-overall').innerText = dimScore + "%";
+        }
+
+
+
+        init();
+    </script>
+</body>
+
+</html>

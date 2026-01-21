@@ -7,7 +7,7 @@ This project aims to bring the experience of spatial reasoning and pattern match
 
 ## 🎮 Demo
 
-<video src="https://github.com/gabrieleiannace/Copycube/raw/main/demo.mp4" controls="controls" style="max-width: 100%;">
+[![Watch the Demo Video](demo_thumbnail.jpg)](https://github.com/gabrieleiannace/Copycube/raw/main/demo.mp4)
 </video>
 
 > *Check out `demo.mp4` in the repository if the video doesn't play.*
